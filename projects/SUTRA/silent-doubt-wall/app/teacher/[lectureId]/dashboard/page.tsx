@@ -1,13 +1,299 @@
 "use client";
 
-import { useState, useEffect, use, Suspense } from "react";
+import { useState, useEffect, use, Suspense, useRef } from "react";
 import Link from "next/link";
-import { SiteNav, StatusBadge, Button, EmptyState } from "@/components/ui";
+import { SiteNav, StatusBadge, Button, EmptyState, Alert } from "@/components/ui";
 import { QRCodeDisplay } from "@/components/QRCode";
 import { buildJoinUrl } from "@/lib/utils";
 import type { Lecture, RankedGroup } from "@/lib/types";
 
-// ─── Realistic Demo Data for Phase 1 Preview ──────────────────────────────────
+// ─── AI Types ─────────────────────────────────────────────────────────────────
+
+interface DocumentRecord {
+  id: string;
+  lectureId: string;
+  filename: string;
+  mimeType: string;
+  pageCount?: number;
+  extractionStatus: "pending" | "success" | "failed" | "image_pdf";
+  chunkCount: number;
+  uploadedAt: string;
+}
+
+interface AiInsights {
+  stats: {
+    totalDoubts: number;
+    totalGroups: number;
+    totalVotes: number;
+  };
+  ai?: {
+    confusionSummary: string;
+    topicClusters: string[];
+    teachingRecommendations: string[];
+    unansweredHighPriority: string[];
+  };
+  generatedAt: string;
+}
+
+// ─── Document Upload Panel ────────────────────────────────────────────────────
+
+function DocumentUploadPanel({ lectureId }: { lectureId: string }) {
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch(`/api/ai/documents/${lectureId}`)
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setDocuments(j.data ?? []); })
+      .catch(() => {});
+  }, [lectureId]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    setUploadSuccess(null);
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`/api/ai/documents/${lectureId}`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.ok) {
+        setUploadError(json.error ?? "Upload failed.");
+      } else {
+        setDocuments((prev) => [json.data, ...prev]);
+        setUploadSuccess(`"${file.name}" uploaded and indexed successfully.`);
+      }
+    } catch {
+      setUploadError("Network error during upload.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  const statusIcon = (s: DocumentRecord["extractionStatus"]) => {
+    if (s === "success") return <span className="text-emerald text-xs">✓ Indexed</span>;
+    if (s === "failed") return <span className="text-rose text-xs">✗ Failed</span>;
+    if (s === "image_pdf") return <span className="text-amber-dark text-xs">⚠ Image PDF</span>;
+    return <span className="text-ink-faint text-xs">⋯ Processing</span>;
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-paper p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+          <svg className="w-4 h-4 text-teal" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4-4 4 4M12 12l4-4-4-4M8 8v8" />
+          </svg>
+          Lecture Documents
+        </h3>
+        <span className="text-[11px] text-ink-faint font-mono">PDF · DOCX · PPTX · TXT · max 10 MB</span>
+      </div>
+
+      {uploadError && <Alert type="error">{uploadError}</Alert>}
+      {uploadSuccess && <Alert type="success">{uploadSuccess}</Alert>}
+
+      <label className={`flex items-center justify-center gap-2 w-full h-16 rounded-lg border-2 border-dashed transition-colors cursor-pointer text-sm ${
+        uploading ? "border-teal/30 text-ink-faint" : "border-border hover:border-teal/50 hover:bg-surface text-ink-subtle hover:text-teal"
+      }`}>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.docx,.pptx,.txt"
+          onChange={handleUpload}
+          disabled={uploading}
+          className="sr-only"
+          aria-label="Upload lecture document"
+        />
+        {uploading ? (
+          <>
+            <span className="inline-block w-4 h-4 border-2 border-teal border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+            Uploading…
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a1 1 0 001 1h10a1 1 0 001-1v-1M8 12V4m0 0L5 7m3-3l3 3" />
+            </svg>
+            Upload a document for AI answers
+          </>
+        )}
+      </label>
+
+      {documents.length > 0 && (
+        <ul className="space-y-1.5" aria-label="Uploaded documents">
+          {documents.map((doc) => (
+            <li key={doc.id} className="flex items-center justify-between gap-2 text-xs bg-surface rounded-lg px-3 py-2">
+              <span className="text-ink font-medium truncate max-w-[60%]" title={doc.filename}>{doc.filename}</span>
+              <div className="flex items-center gap-3 shrink-0">
+                {doc.chunkCount > 0 && <span className="text-ink-faint font-mono">{doc.chunkCount} chunks</span>}
+                {statusIcon(doc.extractionStatus)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {documents.length === 0 && !uploading && (
+        <p className="text-[11px] text-ink-faint text-center">
+          No documents yet. Upload your lecture notes so students can request AI answers.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── AI Insights Panel ───────────────────────────────────────────────────────
+
+function AiInsightsPanel({ lectureId }: { lectureId: string }) {
+  const [insights, setInsights] = useState<AiInsights | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  async function loadInsights() {
+    setLoading(true);
+    setError(null);
+    setOpen(true);
+    try {
+      const res = await fetch(`/api/ai/insights/${lectureId}`);
+      const json = await res.json();
+      if (json.ok) {
+        setInsights(json.data);
+      } else {
+        setError(json.error ?? "Failed to load insights.");
+      }
+    } catch {
+      setError("Network error loading insights.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button variant="secondary" size="sm" onClick={loadInsights} className="w-full">
+        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        Generate AI Insights
+      </Button>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border bg-surface p-4 space-y-2" role="status" aria-live="polite">
+        <div className="flex items-center gap-2 text-sm text-ink-subtle">
+          <span className="inline-block w-4 h-4 border-2 border-teal border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+          Analyzing class confusion patterns…
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-2">
+        <Alert type="error">{error}</Alert>
+        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Dismiss</Button>
+      </div>
+    );
+  }
+
+  if (!insights) return null;
+
+  return (
+    <div className="rounded-xl border border-teal/20 bg-teal-light/10 p-4 space-y-4" role="region" aria-label="AI lecture insights">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-teal flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          AI Insights
+        </h3>
+        <button onClick={() => setOpen(false)} className="text-ink-faint hover:text-ink text-xs" aria-label="Close insights">✕</button>
+      </div>
+
+      {/* Factual stats */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "Questions", value: insights.stats.totalDoubts },
+          { label: "Groups", value: insights.stats.totalGroups },
+          { label: "Votes", value: insights.stats.totalVotes },
+        ].map((s) => (
+          <div key={s.label} className="bg-paper rounded-lg border border-border px-3 py-2 text-center">
+            <p className="text-lg font-mono font-semibold text-ink">{s.value}</p>
+            <p className="text-[10px] text-ink-faint uppercase tracking-wider">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {insights.ai ? (
+        <div className="space-y-3">
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-wider text-ink-faint mb-1">Summary</p>
+            <p className="text-sm text-ink leading-relaxed">{insights.ai.confusionSummary}</p>
+          </div>
+
+          {insights.ai.topicClusters.length > 0 && (
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-ink-faint mb-1.5">Confusion Topics</p>
+              <div className="flex flex-wrap gap-1.5">
+                {insights.ai.topicClusters.map((t, i) => (
+                  <span key={i} className="text-xs bg-teal-light/60 text-teal px-2 py-0.5 rounded-full">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {insights.ai.teachingRecommendations.length > 0 && (
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-ink-faint mb-1.5">Recommendations</p>
+              <ul className="space-y-1">
+                {insights.ai.teachingRecommendations.map((r, i) => (
+                  <li key={i} className="text-xs text-ink-subtle flex items-start gap-1.5">
+                    <span className="text-teal mt-0.5">→</span>{r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {insights.ai.unansweredHighPriority.length > 0 && (
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-ink-faint mb-1.5">Top Unanswered</p>
+              <ul className="space-y-1">
+                {insights.ai.unansweredHighPriority.map((q, i) => (
+                  <li key={i} className="text-xs text-ink bg-paper border border-border rounded px-2.5 py-1.5">{q}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-ink-faint">Stats above are from real lecture data. Configure GEMINI_API_KEY for AI-generated analysis.</p>
+      )}
+
+      <p className="text-[10px] text-ink-faint border-t border-border/60 pt-2">
+        Generated {new Date(insights.generatedAt).toLocaleTimeString()} · Stats are factual counts from this lecture
+      </p>
+    </div>
+  );
+}
+
+
 // Conforms strictly to the domain rules:
 // - "mean" and "average" grouped
 // - "mode" distinct
@@ -664,6 +950,16 @@ function TeacherDashboardContent({
                 Phase 1 data is managed in browser session memory. Supabase PostgreSQL with RLS and realtime websockets will be wired in Phase 2.
               </div>
             </div>
+
+            {/* Document Upload */}
+            {!useDemoData && lecture?.status !== "ended" && (
+              <DocumentUploadPanel lectureId={lectureId} />
+            )}
+
+            {/* AI Insights */}
+            {!useDemoData && (
+              <AiInsightsPanel lectureId={lectureId} />
+            )}
           </aside>
         </div>
       </main>
