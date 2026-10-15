@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+/* ─── Silent Doubt Wall — Design System ──────────────────────────────────────
+   
+   Color palette: "Quiet Confidence"
+   
+   Foundation: warm-white paper (#FAFAF8) and near-black ink (#18181A)
+   Primary:    slate-teal (#1D6A6A)   — trust, academia, precision
+   Accent:     amber (#D97706)        — attention, status, live
+   Surface:    warm-gray (#F4F3F0)    — content backgrounds
+   
+   Typography: system-font stack anchored in Instrument Serif (editorial
+               display) and Inter (functional body/UI).
+   
+   Motion: deliberate, minimal. Respect prefers-reduced-motion.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@theme inline {
+  /* ── Color tokens ─────────────────────────────────────────────────────── */
+  --color-paper:        #FAFAF8;
+  --color-ink:          #18181A;
+  --color-ink-subtle:   #4A4A50;
+  --color-ink-faint:    #8A8A92;
+
+  --color-surface:      #F4F3F0;
+  --color-surface-2:    #EAEAE6;
+  --color-border:       #D8D8D4;
+  --color-border-strong:#BCBCB6;
+
+  --color-teal:         #1D6A6A;
+  --color-teal-dark:    #155050;
+  --color-teal-light:   #E8F4F4;
+  --color-teal-mid:     #4A9090;
+
+  --color-amber:        #D97706;
+  --color-amber-dark:   #B45309;
+  --color-amber-light:  #FEF3C7;
+
+  --color-emerald:      #059669;
+  --color-emerald-light:#D1FAE5;
+
+  --color-rose:         #DC2626;
+  --color-rose-light:   #FEE2E2;
+
+  --color-slate:        #64748B;
+  --color-slate-light:  #F1F5F9;
+
+  /* Status semantic colors */
+  --color-live:         #D97706;   /* amber — live lecture */
+  --color-approved:     #059669;   /* emerald — approved question */
+  --color-pending:      #64748B;   /* slate — awaiting moderation */
+  --color-rejected:     #DC2626;   /* rose — rejected */
+  --color-needs-review: #9333EA;   /* purple — ambiguous, needs review */
+
+  /* ── Typography tokens ────────────────────────────────────────────────── */
+  --font-display:  "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-sans:     "Inter", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono:     "JetBrains Mono", "Fira Code", ui-monospace, "Cascadia Code", monospace;
+
+  /* ── Spacing / layout tokens ──────────────────────────────────────────── */
+  --radius-sm:     4px;
+  --radius-md:     8px;
+  --radius-lg:     12px;
+  --radius-xl:     16px;
+  --radius-pill:   9999px;
+
+  /* ── Shadow tokens ────────────────────────────────────────────────────── */
+  --shadow-xs:  0 1px 2px 0 rgb(24 24 26 / 0.06);
+  --shadow-sm:  0 1px 3px 0 rgb(24 24 26 / 0.1), 0 1px 2px -1px rgb(24 24 26 / 0.1);
+  --shadow-md:  0 4px 6px -1px rgb(24 24 26 / 0.1), 0 2px 4px -2px rgb(24 24 26 / 0.1);
+  --shadow-lg:  0 10px 15px -3px rgb(24 24 26 / 0.1), 0 4px 6px -4px rgb(24 24 26 / 0.1);
+}
+
+/* ── Base styles ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  background-color: #FAFAF8;
+  color: #18181A;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  background-color: #FAFAF8;
+  color: #18181A;
+  min-height: 100dvh;
+  line-height: 1.6;
+}
+
+/* ── Display / editorial typography ──────────────────────────────────────── */
+.font-display {
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+}
+
+/* ── Focus ring: unified accessible ring ─────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #1D6A6A;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Live pulse badge ────────────────────────────────────────────────────── */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.live-dot {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
+/* ── Smooth fade-in (page entry only) ────────────────────────────────────── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up { animation: none; }
+}
+
+/* ── Me-too press feedback ───────────────────────────────────────────────── */
+@keyframes pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.animate-pop {
+  animation: pop 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop { animation: none; }
+}
+
+/* ── Scrollbar (subtle) ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D8D8D4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #BCBCB6; }
+
+/* ── Question feed rows ──────────────────────────────────────────────────── */
+.question-row {
+  border-bottom: 1px solid #EAEAE6;
+  transition: background-color 0.15s ease;
+}
+.question-row:last-child { border-bottom: none; }
+.question-row:hover { background-color: #F4F3F0; }
